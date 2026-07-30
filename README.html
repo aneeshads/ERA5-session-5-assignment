@@ -1,0 +1,1055 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A Data Mixture and Curriculum Specification for a 40-Billion-Parameter India-First Language Model</title>
+<style>
+:root {
+  --bg: #ffffff; --panel: #f7f8fa; --text: #1a1d21; --muted: #5b636e;
+  --border: #e3e6ea; --accent: #2f5fd0; --accent-soft: #eaf0fd;
+  --th-bg: #eef1f6; --code-bg: #f0f2f5; --quote-bar: #2f5fd0; --maxw: 860px;
+  /* chart surface + ink */
+  --viz-surface: #fcfcfb; --viz-ink: #0b0b0b; --viz-muted: #898781;
+  --viz-grid: #e1e0d9; --viz-axis: #c3c2b7; --viz-inklight: #0b0b0b;
+  /* categorical (validated slot order) */
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100;
+  --s5:#e87ba4; --s6:#008300; --s7:#4a3aa7; --s8:#e34948;
+  /* blue ordinal ramp (verified→synthetic / short→long) */
+  --t1:#184f95; --t2:#256abf; --t3:#3987e5; --t4:#86b6ef;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:#14171c; --panel:#1b1f26; --text:#e6e9ee; --muted:#9aa4b2;
+    --border:#2b313b; --accent:#7ea2ff; --accent-soft:#1d2636;
+    --th-bg:#222834; --code-bg:#232936; --quote-bar:#7ea2ff;
+    --viz-surface:#1a1a19; --viz-ink:#ffffff; --viz-muted:#898781;
+    --viz-grid:#2c2c2a; --viz-axis:#383835; --viz-inklight:#0b0b0b;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
+    --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767;
+    --t1:#b7d3f6; --t2:#86b6ef; --t3:#5598e7; --t4:#3987e5;
+  }
+}
+:root[data-theme="dark"] {
+  --bg:#14171c; --panel:#1b1f26; --text:#e6e9ee; --muted:#9aa4b2;
+  --border:#2b313b; --accent:#7ea2ff; --accent-soft:#1d2636;
+  --th-bg:#222834; --code-bg:#232936; --quote-bar:#7ea2ff;
+  --viz-surface:#1a1a19; --viz-ink:#ffffff; --viz-muted:#898781;
+  --viz-grid:#2c2c2a; --viz-axis:#383835; --viz-inklight:#0b0b0b;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
+  --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767;
+  --t1:#b7d3f6; --t2:#86b6ef; --t3:#5598e7; --t4:#3987e5;
+}
+:root[data-theme="light"] {
+  --bg:#ffffff; --panel:#f7f8fa; --text:#1a1d21; --muted:#5b636e;
+  --border:#e3e6ea; --accent:#2f5fd0; --accent-soft:#eaf0fd;
+  --th-bg:#eef1f6; --code-bg:#f0f2f5; --quote-bar:#2f5fd0;
+  --viz-surface:#fcfcfb; --viz-ink:#0b0b0b; --viz-muted:#898781;
+  --viz-grid:#e1e0d9; --viz-axis:#c3c2b7; --viz-inklight:#0b0b0b;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100;
+  --s5:#e87ba4; --s6:#008300; --s7:#4a3aa7; --s8:#e34948;
+  --t1:#184f95; --t2:#256abf; --t3:#3987e5; --t4:#86b6ef;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font-family: "Charter","Georgia","Iowan Old Style","Times New Roman",serif;
+  font-size: 18px; line-height: 1.65; letter-spacing: .1px;
+}
+.wrap { max-width: var(--maxw); margin: 0 auto; padding: 40px 24px 120px; }
+.toolbar {
+  position: sticky; top: 0; z-index: 10;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(8px); border-bottom: 1px solid var(--border);
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 24px; gap: 12px;
+  font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  font-size: 13px;
+}
+.toolbar .brand { color: var(--muted); font-weight: 600; letter-spacing: .3px; }
+.toolbar button {
+  font: inherit; cursor: pointer; color: var(--text);
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px 12px;
+}
+.toolbar button:hover { border-color: var(--accent); color: var(--accent); }
+h1,h2,h3,h4 {
+  font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  line-height: 1.25; color: var(--text); font-weight: 700;
+}
+h1 { font-size: 2.0rem; margin: .2em 0 .6em; letter-spacing: -.3px; }
+h2 { font-size: 1.42rem; margin: 2.4em 0 .7em; padding-bottom: .3em; border-bottom: 2px solid var(--border); }
+h3 { font-size: 1.14rem; margin: 1.8em 0 .5em; color: var(--accent); }
+h4 { font-size: 1.0rem; margin: 1.4em 0 .4em; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+p { margin: .85em 0; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+strong { font-weight: 700; }
+hr { border: none; border-top: 1px solid var(--border); margin: 2.4em 0; }
+ul,ol { padding-left: 1.4em; margin: .8em 0; }
+li { margin: .35em 0; }
+blockquote {
+  margin: 1.4em 0; padding: .6em 1.1em; background: var(--accent-soft);
+  border-left: 4px solid var(--quote-bar); border-radius: 0 8px 8px 0;
+}
+blockquote p { margin: .4em 0; }
+code {
+  font-family: "SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+  font-size: .86em; background: var(--code-bg); padding: .12em .4em; border-radius: 5px;
+}
+pre {
+  background: var(--code-bg); border: 1px solid var(--border); border-radius: 10px;
+  padding: 14px 16px; overflow-x: auto; font-size: .85rem; line-height: 1.5;
+}
+pre code { background: none; padding: 0; font-size: inherit; }
+.table-scroll { overflow-x: auto; margin: 1.3em 0; border-radius: 10px; border: 1px solid var(--border); }
+table {
+  border-collapse: collapse; width: 100%;
+  font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  font-size: .82rem; line-height: 1.45;
+}
+thead th {
+  background: var(--th-bg); text-align: left; font-weight: 700;
+  padding: 10px 12px; border-bottom: 2px solid var(--border); white-space: nowrap;
+}
+tbody td { padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:nth-child(even) { background: color-mix(in srgb, var(--panel) 55%, transparent); }
+td code, th code { white-space: nowrap; }
+h1 + p { color: var(--muted); }
+::selection { background: var(--accent-soft); }
+
+/* ---- charts ---- */
+figure.chart {
+  margin: 1.6em 0 2em; padding: 18px 18px 14px;
+  background: var(--viz-surface); border: 1px solid var(--border);
+  border-radius: 12px;
+}
+figure.chart .viz { width: 100%; height: auto; display: block; }
+figure.chart figcaption {
+  font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  font-size: .8rem; line-height: 1.5; color: var(--muted); margin-top: 12px;
+}
+figure.chart figcaption b { color: var(--text); }
+svg.viz text {
+  font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+}
+svg.viz .vmut { fill: var(--viz-muted); font-size: 12px; }
+svg.viz .vlbl { fill: var(--text); font-size: 12.5px; }
+svg.viz .vin  { fill: #ffffff; font-size: 12px; font-weight: 600; }
+svg.viz .vink { fill: var(--viz-inklight); font-size: 12px; font-weight: 600; }
+svg.viz .vgrid { stroke: var(--viz-grid); stroke-width: 1; }
+.legend {
+  display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 12px;
+  font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  font-size: .78rem; color: var(--text);
+}
+.legend .lg { display: inline-flex; align-items: center; gap: 6px; }
+.legend .lg i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+
+/* ---- interactive stage explorer ---- */
+.explorer { margin: 1.6em 0 2em; padding: 16px; background: var(--viz-surface);
+  border: 1px solid var(--border); border-radius: 12px;
+  font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+.ex-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+.ex-tab { font: inherit; font-size: .8rem; cursor: pointer; padding: 6px 12px;
+  border-radius: 8px; border: 1px solid var(--border); background: var(--panel);
+  color: var(--text); line-height: 1.2; text-align: left; }
+.ex-tab small { display: block; color: var(--muted); font-size: .7rem; margin-top: 2px; }
+.ex-tab.active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.ex-tab.active small { color: var(--accent); }
+.ex-grid { display: grid; grid-template-columns: 1.25fr 1fr; gap: 22px; align-items: start; }
+.ex-row { display: grid; grid-template-columns: 13px 128px 1fr 40px; align-items: center;
+  gap: 9px; margin: 8px 0; font-size: .8rem; }
+.ex-row .sw { width: 12px; height: 12px; border-radius: 3px; }
+.ex-row .nm { color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ex-row input[type=range] { width: 100%; accent-color: var(--accent); margin: 0; }
+.ex-row .vv { text-align: right; color: var(--text); font-variant-numeric: tabular-nums; }
+.ex-bar { display: flex; width: 100%; height: 40px; border-radius: 7px; overflow: hidden;
+  border: 1px solid var(--border); }
+.ex-seg { height: 100%; display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 600; color: #fff;
+  text-shadow: 0 0 2px rgba(0,0,0,.5); overflow: hidden; }
+.ex-cap { font-size: .75rem; color: var(--muted); margin-top: 8px; }
+.ex-supply { margin-top: 18px; overflow-x: auto; }
+.ex-supply table { width: 100%; border-collapse: collapse; font-size: .78rem; }
+.ex-supply th { text-align: left; color: var(--muted); font-weight: 600; padding: 6px 8px;
+  border-bottom: 1px solid var(--border); white-space: nowrap; }
+.ex-supply td { padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.ex-supply td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.chip { display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: .72rem;
+  font-weight: 600; white-space: nowrap; }
+.chip.green { background: rgba(12,163,12,.16); color: #0ca30c; }
+.chip.amber { background: rgba(230,150,0,.20); color: #cf8b00; }
+.chip.red   { background: rgba(227,73,72,.16); color: #e34948; }
+.chip.gray  { background: rgba(137,135,129,.20); color: var(--muted); }
+.ex-actions { margin-top: 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.ex-reset { font: inherit; font-size: .78rem; cursor: pointer; padding: 6px 12px;
+  border-radius: 8px; border: 1px solid var(--border); background: var(--panel); color: var(--text); }
+.ex-reset:hover { border-color: var(--accent); color: var(--accent); }
+.ex-sum { font-size: .75rem; color: var(--muted); }
+@media (max-width: 680px) {
+  .ex-grid { grid-template-columns: 1fr; gap: 16px; }
+  .ex-row { grid-template-columns: 12px 84px 1fr 36px; gap: 7px; }
+}
+
+@media (max-width: 600px) {
+  body { font-size: 16px; }
+  .wrap { padding: 24px 16px 90px; }
+  h1 { font-size: 1.6rem; }
+  h2 { font-size: 1.25rem; }
+  figure.chart { padding: 12px 10px 10px; }
+}
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <span class="brand">ERA V5 · Session 5 — reading view</span>
+  <button id="themeToggle" type="button">Toggle theme</button>
+</div>
+<div class="wrap">
+<h1>A Data Mixture and Curriculum Specification for a 40-Billion-Parameter India-First Language Model</h1>
+<p><strong>ERA V5 · Session 5 — Data Mixtures and Curriculum</strong><br>
+<strong>Document type:</strong> Technical design specification.</p>
+<hr>
+<h2>Abstract</h2>
+<p>The pretraining corpus of a language model does not by itself determine the model's capabilities; the <em>data mixture</em> does — the proportion of each capability the model is exposed to, the order in which it is exposed, and the training stage at which the exposure occurs. This report specifies the data mixture and curriculum for a 40-billion-parameter, India-first model trained on a fixed budget of approximately 5.0 trillion tokens (about 125 tokens per parameter). The target capabilities are agentic coding, reasoning with a controllable effort setting, and native fluency in Indic languages. Every capability lane is sized backward from the benchmark it is intended to improve and forward from the <em>real, published</em> data supply, so that no lane is assigned a share its underlying data cannot support. The governing constraint is the measured supply of verified native Indic text: the largest open Indic corpus, <a href="https://huggingface.co/datasets/ai4bharat/sangraha">Sangraha</a>, contains 64 B verified, 24 B unverified, and 162 B synthetic tokens, and <a href="https://huggingface.co/datasets/ai4bharat/IndicCorpV2">IndicCorp v2</a> adds 14.4 B native Indic tokens — a verified native supply of roughly 64–78 B unique tokens. Because repetition beyond about four epochs ceases to help <a href="https://arxiv.org/abs/2305.16264">(Muennighoff et al., 2023)</a>, a <em>native-majority</em> Indic lane is bounded at approximately 12 % of the budget; the lane is therefore set to 12 % and decomposed explicitly across verified, unverified, translated, and synthetic tiers. Scarce, high-value data is protected by an always-on selection floor and reserved for a final annealing phase. Every proportion is stated as a falsifiable hypothesis with an associated metric, to be validated on 1-billion- and 3-billion-parameter proxy runs before adoption at full scale.</p>
+<p><strong>Keywords:</strong> data mixture; curriculum learning; language-model pretraining; low-resource (Indic) languages; data selection; annealing; data provenance.</p>
+<hr>
+<h2>1. Introduction</h2>
+<p>The same corpus and the same compute budget can produce materially different models depending on how the data is proportioned and ordered. The mixture is therefore a primary design decision rather than a bookkeeping detail.</p>
+<p>The model has three target capabilities:</p>
+<ol>
+<li><strong>Agentic coding.</strong> The model should decompose a long task, issue tool calls across multiple steps, read intermediate results, recover from failed calls, and maintain the growing task history in context.</li>
+<li><strong>Controllable-effort reasoning.</strong> The model should answer simple questions briefly and expend proportionally greater effort on difficult ones, under an explicit effort setting.</li>
+<li><strong>Native Indic fluency.</strong> The model should understand and generate Indic languages natively. This is the differentiating capability and the primary motivation for the project.</li>
+</ol>
+<p>This report makes four contributions: (i) a benchmark-driven method for sizing each capability lane (Section 3); (ii) a main-run and annealing mixture in which every lane is reconciled against its measured, published supply (Section 4); (iii) a concrete, stage-by-stage curriculum, including a protected selection floor and an annealing reserve (Section 5); and (iv) a validation protocol that reduces every proportion to a testable hypothesis (Section 6). No value in this document is treated as final prior to proxy-scale validation.</p>
+<p><strong>Sourcing policy.</strong> Every quantity in this report is either (a) a <em>measured or published figure</em> with a citation — the author's own Session 2–4 results, the ERA V4 course material, or a public dataset whose statistics are drawn from its dataset card or paper — or (b) an explicitly labelled <em>design allocation</em> proposed by the author and subject to the validation protocol of Section 6. Design allocations are never presented as sourced facts, and no lane is assigned a share exceeding its real supply without an explicit repetition (epoch) or synthesis statement.</p>
+<hr>
+<h2>2. Background and prior work</h2>
+<p>The present specification is the fourth step in a sequence, and its numbers depend on the tokenizer, the data ceilings, and the cleaned shards established earlier.</p>
+<h3>2.1 Tokenizer (Session 2)</h3>
+<p>A multilingual vocabulary of approximately 278,000 tokens with an Indic-aware pre-tokenizer was trained, and its per-language fertility was measured. All token counts in this document are expressed in that tokenizer. The dependency is arithmetic: training time is consumed in proportion to token counts rather than sample counts, so a fixed tokenizer is a precondition for an accurate budget.</p>
+<h3>2.2 Data strategy and the Indic-supply constraint (Session 3)</h3>
+<p>Session 3 examined the data required for a 40 B, India-first, Gemma-4-class model. Its principal conclusions carried forward here are: a scale of approximately 5.0 T pretraining tokens (100–150 tokens per parameter) across all 22 scheduled languages; a fertility-driven vocabulary allocation of approximately 278 K tokens; and an evaluation design that both targets published reference scores (MMLU-Pro 85.2, AIME 89.2, LiveCodeBench 80.0, GPQA 84.3) and adds India-first benchmarks — native-language sets and a purpose-built Indian competitive-examination suite (IIT-JEE, NEET, UPSC, UGC-NET, banking) — chosen because such examinations cannot be answered well from a predominantly Western knowledge distribution and therefore measure the differential the objective is intended to produce.</p>
+<p>Session 3's central finding was that the India-first objective is constrained by the availability of <em>verified</em> data rather than by the mixture percentage chosen, and it estimated approximately 410 B <em>usable</em> Indic tokens (about 8 % of a 5 T budget) by expanding the verified base. The present report replaces that estimate with the measured public supply (Section 4.0): the genuinely verified native supply is approximately <strong>64–78 B unique tokens</strong>. At the four-epoch repetition limit this supports roughly 6 % of the budget as verified-effective tokens, which is why the Indic lane is sized to a native-majority 12 % (Section 4.2) rather than to the 20 % original aspiration.</p>
+<p>To raise the verified ceiling over time, Session 3 identified a freely usable, legally clean acquisition tier — the Press Information Bureau (14 languages), the All India Radio and Doordarshan archives (opened to reuse in 2025), and court judgments and legislative debates (reproduction non-infringing under §52(1)(q)(iv) of the Copyright Act 1957) — because these government sources cover the languages for which verified data is scarcest. These are the collection targets of Section 7; they are not yet counted in the supply of Section 4.</p>
+<h3>2.3 Cleaning and deduplication (Session 4)</h3>
+<p>Session 4 implemented and executed an eight-stage cleaning pipeline — extract, normalize, language identification, quality filtering, deduplication, PII scrubbing, decontamination, and manifesting — and reported its yield on two contrasting English web sources without inflating the survival rate. The figures in Table 1 are measured on the author's own corpus.</p>
+<p><strong>Table 1.</strong> Measured cleaning yield on two contrasting sources (Session 4).</p>
+<table>
+<thead>
+<tr>
+<th>Source</th>
+<th>Role</th>
+<th style="text-align: right;">Documents (raw → clean)</th>
+<th style="text-align: right;">Tokens (raw → clean)</th>
+<th style="text-align: right;">Survival</th>
+<th>Observations</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CC-News (raw web news)</td>
+<td>Deduplication and PII test case</td>
+<td style="text-align: right;">20,000 → <strong>15,338</strong></td>
+<td style="text-align: right;">9.46 M → <strong>7.88 M</strong></td>
+<td style="text-align: right;">≈ 77 %</td>
+<td>2,247 near-duplicates removed across 1,684 clusters (largest cluster: 68 reposts of one boilerplate page); PII scrubbing redacted 110,746 names, 3,248 phone numbers, 2,592 URLs, 954 email addresses, and 103 card numbers</td>
+</tr>
+<tr>
+<td>FineWeb (pre-cleaned)</td>
+<td>Baseline for honest reporting</td>
+<td style="text-align: right;">20,000 → <strong>19,494</strong></td>
+<td style="text-align: right;">12.51 M → <strong>12.26 M</strong></td>
+<td style="text-align: right;">≈ 97 %</td>
+<td>An already-deduplicated corpus is expected to lose few documents; the result is reported as measured rather than inflated</td>
+</tr>
+</tbody>
+</table>
+<p>Two design decisions from Session 4 feed directly into the present specification. First, <strong>per-script quality classifiers rather than a single English filter</strong>: a monolingual English quality filter was the mechanism that removed Indic text in the V4 run, so the pipeline instead preserves genuine Brahmic joiners (ZWNJ and ZWJ) while removing zero-width noise. Second, <strong>provenance and determinism by construction</strong>: each shard records its source, license, script hashes, a SHA-256 content hash, and token and language counts, and a re-run reproduces an identical shard hash. This allows every lane in the mixture below to be audited back to a stamped, licensed origin, and it is where the licensing of each source in Section 4.0 is recorded.</p>
+<p>Session 4 also began populating the books and long-context lanes with public-domain material: approximately 300 British Library non-fiction volumes (1800–1899, about 28.7 M words) and 299 Internet Archive Indian-authored non-fiction volumes (36 distinct authors, about 19.9 M words).</p>
+<hr>
+<h2>3. Methodology</h2>
+<h3>3.1 Composing backward from benchmarks</h3>
+<p>A capability that is not measured cannot be demonstrated. Each lane is therefore justified by a named benchmark, and each benchmark is analyzed at the level of which token receives a learning signal, because the position of the learning signal — not the benchmark's name — determines the required training-data shape.</p>
+<p><strong>Table 2.</strong> Mapping from target benchmarks to required training-data shape and learning signal.</p>
+<table>
+<thead>
+<tr>
+<th>Benchmark</th>
+<th>Group</th>
+<th>Quantity scored</th>
+<th>Required data shape</th>
+<th>Learning signal</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SWE-bench (Verified/Lite)</td>
+<td>Agentic coding</td>
+<td>Patch that makes the repository's tests pass</td>
+<td>Issue and repository context → diff/patch</td>
+<td>Loss on the generated patch only</td>
+</tr>
+<tr>
+<td>τ-bench</td>
+<td>Agentic</td>
+<td>Multi-turn tool use under a policy</td>
+<td>Full trajectory (plan → call → recovery → answer)</td>
+<td>Loss on model turns; tool observations receive no loss</td>
+</tr>
+<tr>
+<td>BFCL</td>
+<td>Tool use</td>
+<td>Correct function name and arguments</td>
+<td>Prompt → function call / JSON</td>
+<td>Loss on the emitted call</td>
+</tr>
+<tr>
+<td>GAIA</td>
+<td>Agentic</td>
+<td>Multi-step research</td>
+<td>Long trajectory containing dead ends</td>
+<td>Loss on model steps only</td>
+</tr>
+<tr>
+<td>HumanEval / MBPP</td>
+<td>Coding</td>
+<td>Function synthesis from a docstring</td>
+<td>Docstring → code</td>
+<td>Loss on generated code</td>
+</tr>
+<tr>
+<td>LiveCodeBench</td>
+<td>Coding</td>
+<td>Recent, uncontaminated problems</td>
+<td>Problem → solution and tests</td>
+<td>Loss on the solution</td>
+</tr>
+<tr>
+<td>GSM8K</td>
+<td>Reasoning</td>
+<td>Grade-school word problems</td>
+<td>Short chain-of-thought</td>
+<td>Loss on chain-of-thought and answer</td>
+</tr>
+<tr>
+<td>MATH</td>
+<td>Reasoning</td>
+<td>Competition mathematics</td>
+<td>Medium/long chain-of-thought</td>
+<td>Loss on chain-of-thought and answer</td>
+</tr>
+<tr>
+<td>AIME</td>
+<td>Reasoning</td>
+<td>Olympiad mathematics</td>
+<td>Long chain-of-thought with self-check</td>
+<td>Reward on the final answer (RLVR)</td>
+</tr>
+<tr>
+<td>GPQA-Diamond</td>
+<td>Reasoning</td>
+<td>Graduate-level science</td>
+<td>Long chain-of-thought</td>
+<td>Loss on chain-of-thought / RLVR</td>
+</tr>
+<tr>
+<td>MMLU / MMLU-Pro</td>
+<td>Knowledge</td>
+<td>Broad world knowledge</td>
+<td>General web and curated text</td>
+<td>Next-token (pretraining)</td>
+</tr>
+<tr>
+<td>MILU / IndicMMLU</td>
+<td>Indic</td>
+<td>Indic knowledge and reasoning</td>
+<td>Verified native and translated text</td>
+<td>Next-token / SFT</td>
+</tr>
+<tr>
+<td>IndicGenBench</td>
+<td>Indic</td>
+<td>Indic generation (QA, summarization, MT)</td>
+<td>Native and parallel text</td>
+<td>Loss on the generation</td>
+</tr>
+</tbody>
+</table>
+<p>The learning-signal column is the determining factor: applying loss to a tool observation would train the model to fabricate tool results instead of invoking the tool. This constraint is why the agentic lane is costly (Section 4.3) and why reasoning depth is installed after pretraining rather than during it (Sections 4.4 and 5).</p>
+<h3>3.2 Token budget and supply discipline</h3>
+<p>The budget is 5.0 T tokens (40 B × 125). It is deliberately not larger: the abundant lanes (general web and code) could supply more, but the capabilities that motivate the project — verified Indic text, genuine agentic trajectories, and long reasoning traces — do not exist at multi-trillion scale, so the budget is governed by scarce supply, not abundant supply.</p>
+<p>Two rules maintain the integrity of the accounting. First, the <strong>repetition rule</strong>: consistent with the data-constrained scaling result of <a href="https://arxiv.org/abs/2305.16264">Muennighoff et al. (2023)</a>, up to approximately four epochs of a scarce pool are roughly as valuable as an equivalent quantity of unique tokens, and marginal value declines sharply beyond that point; any lane whose allocation exceeds four epochs of its unique data must close the gap through synthesis, stated explicitly. Second, <strong>supply is stated for every lane</strong>, using the measured figures of Section 4.0, so that no lane receives a large share unsupported by real data.</p>
+<p>The budget divides into a <strong>main pretraining phase of 4.6 T tokens (92 %)</strong> and a <strong>final annealing phase of 0.4 T tokens (8 %)</strong> with a distinct mixture. Post-training — supervised fine-tuning (approximately 10–20 B tokens), preference optimization (approximately 1–5 B), and reinforcement learning with verifiable rewards (reward-based, no fixed token target) — lies outside the 5 T budget and consumes the reserves of Section 4.4.</p>
+<hr>
+<h2>4. Data mixture specification</h2>
+<h3>4.0 Verified data inventory</h3>
+<p>Every supply figure used below is drawn from the dataset's own card or paper. Sizes are approximate as published and, per Section 2.3, must be re-measured in the Session-2 tokenizer against the team's provenance-stamped shards before the run; licensing for each source is recorded in the Session-4 manifests.</p>
+<p><strong>Table 3.</strong> Verified data inventory. Published sizes, with sources.</p>
+<table>
+<thead>
+<tr>
+<th>Dataset</th>
+<th>Lane</th>
+<th>Published size</th>
+<th>Reference</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>FineWeb / FineWeb-Edu</td>
+<td>General web</td>
+<td>15 T / 1.3 T tokens</td>
+<td><a href="https://huggingface.co/datasets/HuggingFaceFW/fineweb-edu">HF</a>; Penedo et al. 2024, <a href="https://arxiv.org/abs/2406.17557">arXiv:2406.17557</a></td>
+</tr>
+<tr>
+<td>DCLM-baseline</td>
+<td>General web</td>
+<td>4 T tokens</td>
+<td><a href="https://huggingface.co/datasets/mlfoundations/dclm-baseline-1.0">HF</a></td>
+</tr>
+<tr>
+<td>The Stack v2 (dedup)</td>
+<td>Code</td>
+<td>≈ 900 B tokens (32.1 TB)</td>
+<td><a href="https://huggingface.co/datasets/bigcode/the-stack-v2-dedup">HF</a>; Lozhkov et al. 2024, <a href="https://arxiv.org/abs/2402.19173">arXiv:2402.19173</a></td>
+</tr>
+<tr>
+<td>FineMath</td>
+<td>Mathematics</td>
+<td>54 B tokens (34 B FineMath-3+)</td>
+<td><a href="https://huggingface.co/datasets/HuggingFaceTB/finemath">HF</a></td>
+</tr>
+<tr>
+<td>Proof-Pile-2</td>
+<td>Mathematics</td>
+<td>55 B tokens</td>
+<td><a href="https://huggingface.co/datasets/EleutherAI/proof-pile-2">HF</a>; Azerbayev et al. 2023, <a href="https://arxiv.org/abs/2310.10631">arXiv:2310.10631</a></td>
+</tr>
+<tr>
+<td>OpenWebMath</td>
+<td>Mathematics</td>
+<td>14.7 B tokens</td>
+<td><a href="https://huggingface.co/datasets/open-web-math/open-web-math">HF</a>; Paster et al. 2023, <a href="https://arxiv.org/abs/2310.06786">arXiv:2310.06786</a></td>
+</tr>
+<tr>
+<td>Nemotron-CC-Math</td>
+<td>Mathematics</td>
+<td>133 B tokens</td>
+<td>Nvidia 2025, <a href="https://arxiv.org/abs/2508.15096">arXiv:2508.15096</a></td>
+</tr>
+<tr>
+<td><strong>Sangraha — Verified</strong></td>
+<td><strong>Indic (verified)</strong></td>
+<td><strong>64 B tokens</strong></td>
+<td><a href="https://huggingface.co/datasets/ai4bharat/sangraha">HF</a>; IndicLLMSuite 2024, <a href="https://arxiv.org/abs/2403.06350">arXiv:2403.06350</a></td>
+</tr>
+<tr>
+<td><strong>Sangraha — Unverified</strong></td>
+<td><strong>Indic (unverified)</strong></td>
+<td><strong>24 B tokens</strong></td>
+<td>same as above</td>
+</tr>
+<tr>
+<td><strong>Sangraha — Synthetic</strong></td>
+<td><strong>Indic (translated/romanized)</strong></td>
+<td><strong>162 B tokens</strong></td>
+<td>same as above</td>
+</tr>
+<tr>
+<td>IndicCorp v2</td>
+<td>Indic (verified)</td>
+<td>20.9 B tokens (14.4 B Indic)</td>
+<td><a href="https://huggingface.co/datasets/ai4bharat/IndicCorpV2">HF</a></td>
+</tr>
+<tr>
+<td>IndicTrans2</td>
+<td>Indic (translation engine)</td>
+<td>22-language MT model</td>
+<td>Gala et al. 2023, <a href="https://arxiv.org/abs/2305.16307">arXiv:2305.16307</a></td>
+</tr>
+<tr>
+<td>NuminaMath-CoT</td>
+<td>Reasoning</td>
+<td>860 K problems with CoT</td>
+<td><a href="https://huggingface.co/datasets/AI-MO/NuminaMath-CoT">HF</a></td>
+</tr>
+<tr>
+<td>OpenThoughts2</td>
+<td>Reasoning</td>
+<td>1 M reasoning samples</td>
+<td><a href="https://huggingface.co/datasets/open-thoughts/OpenThoughts2-1M">HF</a></td>
+</tr>
+<tr>
+<td>xLAM / APIGen</td>
+<td>Agentic / tool use</td>
+<td>60 K calls over 3,673 APIs</td>
+<td><a href="https://huggingface.co/datasets/Salesforce/xlam-function-calling-60k">HF</a>; APIGen 2024, <a href="https://arxiv.org/abs/2406.18518">arXiv:2406.18518</a></td>
+</tr>
+</tbody>
+</table>
+<h3>4.1 Main pretraining mixture</h3>
+<p><strong>Table 4.</strong> Main pretraining mixture (4.6 T tokens). Shares are the author's design allocation; supply figures are from Table 3.</p>
+<table>
+<thead>
+<tr>
+<th>Lane</th>
+<th style="text-align: right;">Share</th>
+<th style="text-align: right;">Tokens</th>
+<th style="text-align: right;">Unique supply (Table 3)</th>
+<th>Supply verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>General web (EN, filtered)</td>
+<td style="text-align: right;">42 %</td>
+<td style="text-align: right;">1.93 T</td>
+<td style="text-align: right;">&gt; 5 T (FineWeb-Edu, DCLM, FineWeb)</td>
+<td>Subsample, &lt; 1 epoch</td>
+</tr>
+<tr>
+<td>Code</td>
+<td style="text-align: right;">22 %</td>
+<td style="text-align: right;">1.01 T</td>
+<td style="text-align: right;">≈ 0.9 T (The Stack v2-dedup)</td>
+<td>≈ 1.1 epochs</td>
+</tr>
+<tr>
+<td>Mathematics &amp; STEM</td>
+<td style="text-align: right;">11 %</td>
+<td style="text-align: right;">0.51 T</td>
+<td style="text-align: right;">≈ 200 B (FineMath, Proof-Pile-2, Nemotron-CC-Math)</td>
+<td>≈ 2.5 epochs</td>
+</tr>
+<tr>
+<td>Indic (all tiers)</td>
+<td style="text-align: right;">12 %</td>
+<td style="text-align: right;">0.55 T</td>
+<td style="text-align: right;">See Section 4.2</td>
+<td>Native-majority; repetition and synthesis stated in 4.2</td>
+</tr>
+<tr>
+<td>Curated knowledge</td>
+<td style="text-align: right;">5 %</td>
+<td style="text-align: right;">0.23 T</td>
+<td style="text-align: right;">≈ 50 B (Wikipedia, StackExchange, S4 books)</td>
+<td>≈ 4 epochs</td>
+</tr>
+<tr>
+<td>Long-context</td>
+<td style="text-align: right;">4 %</td>
+<td style="text-align: right;">0.18 T</td>
+<td style="text-align: right;">Constructed (S4 books, arXiv, repo-packed code)</td>
+<td>Packing</td>
+</tr>
+<tr>
+<td>Reasoning seed</td>
+<td style="text-align: right;">2 %</td>
+<td style="text-align: right;">0.09 T</td>
+<td style="text-align: right;">Single-digit B unique (NuminaMath, OpenThoughts2)</td>
+<td>Mostly distilled; bulk deferred to SFT/RL</td>
+</tr>
+<tr>
+<td>Agentic seed</td>
+<td style="text-align: right;">2 %</td>
+<td style="text-align: right;">0.09 T</td>
+<td style="text-align: right;">≈ 60 K calls unique (xLAM/APIGen)</td>
+<td>Mostly synthetic; Tier-A trajectories reserved for anneal</td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td style="text-align: right;">100 %</td>
+<td style="text-align: right;"><strong>4.6 T</strong></td>
+<td style="text-align: right;"></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<figure class="chart"><svg viewBox="0 0 720 282" class="viz" role="img"><text x="158.0" y="27.0" text-anchor="end" class="vlbl">General web</text><rect x="168" y="14.0" width="209.2" height="18" rx="4" fill="var(--s1)"/><text x="385.2" y="27.0" text-anchor="start" class="vin">42%</text><text x="158.0" y="61.0" text-anchor="end" class="vlbl">Code</text><rect x="168" y="48.0" width="109.6" height="18" rx="4" fill="var(--s2)"/><text x="285.6" y="61.0" text-anchor="start" class="vin">22%</text><text x="158.0" y="95.0" text-anchor="end" class="vlbl">Indic</text><rect x="168" y="82.0" width="59.8" height="18" rx="4" fill="var(--s7)"/><text x="235.8" y="95.0" text-anchor="start" class="vin">12%</text><text x="158.0" y="129.0" text-anchor="end" class="vlbl">Mathematics &amp; STEM</text><rect x="168" y="116.0" width="54.8" height="18" rx="4" fill="var(--s3)"/><text x="230.8" y="129.0" text-anchor="start" class="vin">11%</text><text x="158.0" y="163.0" text-anchor="end" class="vlbl">Curated knowledge</text><rect x="168" y="150.0" width="24.9" height="18" rx="4" fill="var(--s4)"/><text x="200.9" y="163.0" text-anchor="start" class="vin">5%</text><text x="158.0" y="197.0" text-anchor="end" class="vlbl">Long-context</text><rect x="168" y="184.0" width="19.9" height="18" rx="4" fill="var(--s5)"/><text x="195.9" y="197.0" text-anchor="start" class="vin">4%</text><text x="158.0" y="231.0" text-anchor="end" class="vlbl">Reasoning</text><rect x="168" y="218.0" width="10.0" height="18" rx="4" fill="var(--s6)"/><text x="186.0" y="231.0" text-anchor="start" class="vin">2%</text><text x="158.0" y="265.0" text-anchor="end" class="vlbl">Agentic</text><rect x="168" y="252.0" width="10.0" height="18" rx="4" fill="var(--s8)"/><text x="186.0" y="265.0" text-anchor="start" class="vin">2%</text></svg><figcaption><b>Figure 1.</b> Main-run mixture (token-weighted average, 4.6 T). General web leads only by abundance; the scarce lanes it exists to build — Indic, reasoning, agentic — sit at the bottom and are recovered in the anneal (Fig. 4).</figcaption></figure>
+
+<p>Figure 1 presents this allocation ranked by share. General web is the largest lane because it is the most abundant source, not the most valuable; the high-value but scarce lanes are held small in the main run and concentrated in the annealing phase (Section 4.4). Mathematics is repetition-bound at approximately 2.5 epochs once <a href="https://arxiv.org/abs/2508.15096">Nemotron-CC-Math</a> (133 B) is included alongside FineMath and Proof-Pile-2, and curated knowledge at approximately four epochs. The reasoning and agentic seeds are supply-bound: their genuine unique data is small (single-digit billions of reasoning tokens; 60 K function-calling examples), so their pretraining seed is deliberately small — sufficient to teach the token format — with capability depth installed later (Sections 4.3, 4.4).</p>
+<h3>4.2 Indic tier decomposition</h3>
+<p>The Indic lane is the differentiating capability and is supply-constrained, so it is decomposed explicitly rather than reported as a single aggregate. The measured supply is: verified native ≈ 64 B (<a href="https://huggingface.co/datasets/ai4bharat/sangraha">Sangraha-Verified</a>) plus 14.4 B (<a href="https://huggingface.co/datasets/ai4bharat/IndicCorpV2">IndicCorp v2</a>) ≈ <strong>78 B unique</strong> (conservatively 64–78 B, allowing for overlap); unverified native 24 B (Sangraha-Unverified); and synthetic 162 B (Sangraha-Synthetic — Wikimedia translated to 14 languages and transliterated). The lane is set to 12 % (552 B) so that genuine native text (verified + unverified) forms the majority.</p>
+<p><strong>Table 5.</strong> Indic lane decomposition (552 B main-run tokens). Allocation is the author's design; supply and epochs are computed against Table 3.</p>
+<table>
+<thead>
+<tr>
+<th>Tier</th>
+<th style="text-align: right;">Allocation</th>
+<th style="text-align: right;">Share of lane</th>
+<th>Real unique supply</th>
+<th>Repetition / synthesis</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Verified native</td>
+<td style="text-align: right;">210 B</td>
+<td style="text-align: right;">38 %</td>
+<td>≈ 78 B (Sangraha-Verified 64 B + IndicCorp v2 14.4 B)</td>
+<td>≈ 2.7 epochs (within limit)</td>
+</tr>
+<tr>
+<td>Unverified native</td>
+<td style="text-align: right;">90 B</td>
+<td style="text-align: right;">16 %</td>
+<td>24 B (Sangraha-Unverified) + noisy multilingual corpora</td>
+<td>≈ 3.8 epochs on the Sangraha portion (flagged)</td>
+</tr>
+<tr>
+<td>Translated (EN→Indic)</td>
+<td style="text-align: right;">150 B</td>
+<td style="text-align: right;">27 %</td>
+<td>Drawn first from Sangraha-Synthetic (162 B, real); remainder generated with IndicTrans2</td>
+<td>≤ 1 epoch on real data, then generation</td>
+</tr>
+<tr>
+<td>Synthetic / romanized</td>
+<td style="text-align: right;">102 B</td>
+<td style="text-align: right;">19 %</td>
+<td>Sangraha-Synthetic (romanized subset) + generation</td>
+<td>Generation</td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td style="text-align: right;">552 B</td>
+<td style="text-align: right;">100 %</td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<figure class="chart"><svg viewBox="0 0 720 100" class="viz" role="img"><text x="118.0" y="28.0" text-anchor="end" class="vlbl">Main run · 552 B</text><rect x="129.0" y="17.0" width="218.4" height="26" rx="3" fill="var(--t1)"/><text x="238.2" y="33.0" text-anchor="middle" class="vin" paint-order="stroke" stroke="rgba(0,0,0,.4)" stroke-width="2.4">38%</text><rect x="349.4" y="17.0" width="90.8" height="26" rx="3" fill="var(--t2)"/><text x="394.8" y="33.0" text-anchor="middle" class="vin" paint-order="stroke" stroke="rgba(0,0,0,.4)" stroke-width="2.4">16%</text><rect x="442.2" y="17.0" width="154.6" height="26" rx="3" fill="var(--t3)"/><text x="519.5" y="33.0" text-anchor="middle" class="vink" >27%</text><rect x="598.8" y="17.0" width="108.2" height="26" rx="3" fill="var(--t4)"/><text x="652.9" y="33.0" text-anchor="middle" class="vink" >19%</text><text x="118.0" y="74.0" text-anchor="end" class="vlbl">Anneal · 96 B</text><rect x="129.0" y="63.0" width="346.0" height="26" rx="3" fill="var(--t1)"/><text x="302.0" y="79.0" text-anchor="middle" class="vin" paint-order="stroke" stroke="rgba(0,0,0,.4)" stroke-width="2.4">60%</text><rect x="477.0" y="63.0" width="56.0" height="26" rx="3" fill="var(--t2)"/><text x="505.0" y="79.0" text-anchor="middle" class="vin" paint-order="stroke" stroke="rgba(0,0,0,.4)" stroke-width="2.4">10%</text><rect x="535.0" y="63.0" width="85.0" height="26" rx="3" fill="var(--t3)"/><text x="577.5" y="79.0" text-anchor="middle" class="vink" >15%</text><rect x="622.0" y="63.0" width="85.0" height="26" rx="3" fill="var(--t4)"/><text x="664.5" y="79.0" text-anchor="middle" class="vink" >15%</text></svg><div class="legend"><span class="lg"><i style="background:var(--t1)"></i>Verified</span><span class="lg"><i style="background:var(--t2)"></i>Unverified</span><span class="lg"><i style="background:var(--t3)"></i>Translated</span><span class="lg"><i style="background:var(--t4)"></i>Synthetic</span></div><figcaption><b>Figure 2.</b> Indic tier composition. Native text (verified + unverified) is the majority (54%) of the main-run lane, and verified is upweighted for the anneal; translated + synthetic are capped and drawn first from Sangraha's real 162 B synthetic set.</figcaption></figure>
+
+<p>Figure 2 shows this decomposition alongside the annealing composition. Native text (verified + unverified) is <strong>54 %</strong> of the lane; translated and synthetic data together are capped at 46 %, and most of that non-native portion is drawn from Sangraha's <em>already-published</em> 162 B synthetic set rather than from new generation, so the lane rests predominantly on real, existing data. Verified data is repeated at approximately 2.7 epochs, within the four-epoch limit; the unverified tier is the most repetition-strained (approximately 3.8 epochs on the Sangraha portion) and is supplemented by additional multilingual corpora. Pushing the lane to 15 % would force the verified share below one third and make the lane translation- and synthetic-majority, which the measured supply does not justify; the lane is therefore held at 12 %.</p>
+<p>Across the main and annealing phases, native Indic is protected by the always-on floor of Section 5.3. Within the lane, the higher-supply languages (Hindi, Bengali, Marathi, Tamil, Telugu) take the largest verified share, while the long tail (Dogri, Maithili, Santali, and others) is protected by a per-language minimum and filled proportionally more by translation and transliteration; the government sources of Section 7 are the route to raising the verified floor for exactly those languages.</p>
+<h3>4.3 Agentic data</h3>
+<p>A representative agentic task is: identify every U.S. research grant relevant to a project, determine the laboratories that received them, and establish which recipients could plausibly purchase a specific instrument because their funded work requires it. No single tool call answers this. The training example is a trajectory — plan, search, read, follow-up search, a failed call, recovery, a running summary, and a final answer.</p>
+<p>The masking rule is an invariant: the user request and every tool observation are context and receive no loss, while only the model's planning, tool calls, and final answer receive loss. A trajectory of approximately 6,000 tokens may contain only about 1,200 supervised tokens. The largest verified open resource is <a href="https://huggingface.co/datasets/Salesforce/xlam-function-calling-60k">xLAM/APIGen</a> (60 K executable function-calling examples over 3,673 APIs); genuine long multi-step trajectories are far scarcer. The seed is therefore small and mostly synthesized with a tool-execution harness, and the most valuable real trajectories are reserved for annealing because they cannot be regenerated once consumed. This lane targets SWE-bench (diff-shaped edit data), BFCL and τ-bench (function-call and full-trajectory data), and GAIA.</p>
+<h3>4.4 Reasoning data and the effort control</h3>
+<p>The inference-time effort control (low, medium, high, ultra) does not create reasoning; it selects among behaviours the model was trained to produce. The reserved reasoning data is therefore a distribution over trace lengths, delivered short-before-long by the curriculum, drawn from open resources such as <a href="https://huggingface.co/datasets/AI-MO/NuminaMath-CoT">NuminaMath-CoT</a> (860 K problems) and <a href="https://huggingface.co/datasets/open-thoughts/OpenThoughts2-1M">OpenThoughts2</a> (1 M samples) and extended by distillation.</p>
+<p><strong>Table 6.</strong> Reasoning-trace length bands, with representative behaviour and examples.</p>
+<table>
+<thead>
+<tr>
+<th>Band</th>
+<th>Thinking budget</th>
+<th>Behaviour</th>
+<th>Representative example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Low</td>
+<td>≤ 128 tokens</td>
+<td>Direct answer, no trace</td>
+<td>"12 × 11 → 132."</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td>128–512</td>
+<td>A few explicit steps</td>
+<td>GSM8K: "2 bolts blue + half that white = 2 + 1 = 3."</td>
+</tr>
+<tr>
+<td>High</td>
+<td>512–2048</td>
+<td>Explores and verifies an intermediate result</td>
+<td>MATH L4: derive, check a boundary case, then answer.</td>
+</tr>
+<tr>
+<td>Ultra</td>
+<td>2048–8192+</td>
+<td>Attempts an approach, encounters a contradiction, backtracks, and verifies numerically</td>
+<td>AIME: casework → dead end → generating functions → sanity-check n = 3 → answer.</td>
+</tr>
+</tbody>
+</table>
+<p>The reserve's length distribution is set at <strong>Low 15 %, Medium 25 %, High 40 %, Ultra 20 %</strong>: weighted toward the high band, which is the working depth of most difficult problems, with a deliberate 20 % ultra tail so the model learns to sustain and self-correct long chains, and a 40 % short foundation so it also learns to answer concisely.</p>
+<figure class="chart"><svg viewBox="0 0 720 146" class="viz" role="img"><text x="158.0" y="27.0" text-anchor="end" class="vlbl">Low</text><rect x="168" y="14.0" width="74.7" height="18" rx="4" fill="var(--t4)"/><text x="250.7" y="27.0" text-anchor="start" class="vin">15%</text><text x="158.0" y="61.0" text-anchor="end" class="vlbl">Medium</text><rect x="168" y="48.0" width="124.5" height="18" rx="4" fill="var(--t3)"/><text x="300.5" y="61.0" text-anchor="start" class="vin">25%</text><text x="158.0" y="95.0" text-anchor="end" class="vlbl">High</text><rect x="168" y="82.0" width="199.2" height="18" rx="4" fill="var(--t2)"/><text x="375.2" y="95.0" text-anchor="start" class="vin">40%</text><text x="158.0" y="129.0" text-anchor="end" class="vlbl">Ultra</text><rect x="168" y="116.0" width="99.6" height="18" rx="4" fill="var(--t1)"/><text x="275.6" y="129.0" text-anchor="start" class="vin">20%</text></svg><figcaption><b>Figure 3.</b> Reasoning-trace length distribution in the reserve. Short (Low + Medium) 40% teaches brevity; High 40% is the working depth of most hard problems; a deliberate 20% Ultra tail teaches sustained self-correction. Ordered light→dark by length.</figcaption></figure>
+
+<p>Figure 3 shows this distribution. The reserve holds all four bands across mathematics, code, and general problem-solving; restricting it to a single domain would tie the effort control to that domain. Depth is installed after the base model exists — through supervised fine-tuning on worked traces and then reinforcement learning with verifiable rewards, in which a checker grades the final answer and no token-level target is required. The reservation decided here is what makes reasoning training feasible in Sessions 17–18.</p>
+<hr>
+<h2>5. Curriculum and training schedule</h2>
+<h3>5.1 Stage sequence</h3>
+<p>Order is nearly as consequential as proportion. Difficult material presented before its prerequisites is largely wasted, and a constant mixture forgoes the advantage of learning simple patterns before complex ones. The run therefore proceeds through stages, and within each stage advances along a difficulty ladder.</p>
+<p><strong>Table 7.</strong> Curriculum stages, token spans, mixture direction, and difficulty band.</p>
+<table>
+<thead>
+<tr>
+<th>Stage</th>
+<th>Span</th>
+<th style="text-align: right;">Tokens</th>
+<th>Mixture direction</th>
+<th>Difficulty</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Seed</td>
+<td>0 → 3 %</td>
+<td style="text-align: right;">~0.15 T</td>
+<td>General web and Wikipedia; Indic floor active from step 0</td>
+<td>D1</td>
+</tr>
+<tr>
+<td>Foundation</td>
+<td>3 → 50 %</td>
+<td style="text-align: right;">~2.35 T</td>
+<td>The broad mixture of Section 4.1</td>
+<td>D1 → D2</td>
+</tr>
+<tr>
+<td>STEM/reasoning ramp</td>
+<td>50 → 80 %</td>
+<td style="text-align: right;">~1.5 T</td>
+<td>Web decreasing; code, mathematics, reasoning increasing</td>
+<td>D2 → D3</td>
+</tr>
+<tr>
+<td>Long-context</td>
+<td>80 → 92 %</td>
+<td style="text-align: right;">~0.6 T</td>
+<td>Context extended 4k → 32k → 128k; books, repo-level, long CoT</td>
+<td>D3</td>
+</tr>
+<tr>
+<td>Final anneal</td>
+<td>92 → 100 %</td>
+<td style="text-align: right;"><strong>0.4 T</strong></td>
+<td>Reduced learning rate; reserve preset (Section 5.4)</td>
+<td>D3 → D4</td>
+</tr>
+</tbody>
+</table>
+<p>Difficulty exemplars: D1 — "reverse a string" / "2 + 2"; D2 — MBPP "longest common prefix" / MATH L2; D3 — SWE-bench Django ORM fix / an AIME problem / MATH L5; D4 — GPQA-Diamond / a multi-file API-migration refactor / a research-level proof.</p>
+<h3>5.2 Per-stage mixture</h3>
+<p>The main-run mixture of Section 4.1 is a token-weighted average; the run does not hold it constant. Each stage reweights the eight lanes: general web decreases monotonically while code, mathematics, reasoning, and long-context increase; Indic is held above its floor and then upsampled; and the scarce lanes remain small until annealing. Values are percentages of each stage's tokens, and the columns sum to 100.</p>
+<p><strong>Table 8.</strong> Per-stage mixture (percentage of each stage's tokens). Stage share of the whole run is shown in the header.</p>
+<table>
+<thead>
+<tr>
+<th>Lane</th>
+<th style="text-align: right;">Seed · 3 %</th>
+<th style="text-align: right;">Foundation · 47 %</th>
+<th style="text-align: right;">STEM ramp · 30 %</th>
+<th style="text-align: right;">Long-context · 12 %</th>
+<th style="text-align: right;">Anneal · 8 %</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>General web</td>
+<td style="text-align: right;">62</td>
+<td style="text-align: right;">49</td>
+<td style="text-align: right;">30</td>
+<td style="text-align: right;">22</td>
+<td style="text-align: right;">14</td>
+</tr>
+<tr>
+<td>Code</td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">22</td>
+<td style="text-align: right;">28</td>
+<td style="text-align: right;">22</td>
+<td style="text-align: right;">18</td>
+</tr>
+<tr>
+<td>Mathematics &amp; STEM</td>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">9</td>
+<td style="text-align: right;">16</td>
+<td style="text-align: right;">12</td>
+<td style="text-align: right;">16</td>
+</tr>
+<tr>
+<td>Indic (all tiers)</td>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">13</td>
+<td style="text-align: right;">11</td>
+<td style="text-align: right;">10</td>
+<td style="text-align: right;">24</td>
+</tr>
+<tr>
+<td>Curated knowledge</td>
+<td style="text-align: right;">18</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: right;">3</td>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">0</td>
+</tr>
+<tr>
+<td>Long-context</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">0</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">24</td>
+<td style="text-align: right;">8</td>
+</tr>
+<tr>
+<td>Reasoning</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">8</td>
+</tr>
+<tr>
+<td>Agentic</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">12</td>
+</tr>
+</tbody>
+</table>
+<figure class="chart"><svg viewBox="0 0 760 440" class="viz" role="img" aria-label="Mixture composition across the five training stages"><line x1="40" y1="362.0" x2="746" y2="362.0" class="vgrid"/><text x="34.0" y="365.5" text-anchor="end" class="vmut">0</text><line x1="40" y1="275.5" x2="746" y2="275.5" class="vgrid"/><text x="34.0" y="279.0" text-anchor="end" class="vmut">25</text><line x1="40" y1="189.0" x2="746" y2="189.0" class="vgrid"/><text x="34.0" y="192.5" text-anchor="end" class="vmut">50</text><line x1="40" y1="102.5" x2="746" y2="102.5" class="vgrid"/><text x="34.0" y="106.0" text-anchor="end" class="vmut">75</text><line x1="40" y1="16.0" x2="746" y2="16.0" class="vgrid"/><text x="34.0" y="19.5" text-anchor="end" class="vmut">100</text><rect x="40.0" y="148.5" width="114.0" height="212.5" rx="2" fill="var(--s1)"/><text x="97.0" y="258.7" text-anchor="middle" class="vin" paint-order="stroke" stroke="rgba(0,0,0,.45)" stroke-width="2.6">62</text><rect x="40.0" y="120.8" width="114.0" height="25.7" rx="2" fill="var(--s2)"/><text x="97.0" y="137.6" text-anchor="middle" class="vin" paint-order="stroke" stroke="rgba(0,0,0,.45)" stroke-width="2.6">8</text><rect x="40.0" y="113.9" width="114.0" height="4.9" rx="2" fill="var(--s3)"/><rect x="40.0" y="51.6" width="114.0" height="60.3" rx="2" fill="var(--s4)"/><text x="97.0" y="85.7" text-anchor="middle" class="vin" paint-order="stroke" stroke="rgba(0,0,0,.45)" stroke-width="2.6">18</text><rect x="40.0" y="48.1" width="114.0" height="1.5" rx="2" fill="var(--s6)"/><rect x="40.0" y="20.5" width="114.0" height="25.7" rx="2" fill="var(--s7)"/><text x="97.0" y="37.3" text-anchor="middle" class="vin" paint-order="stroke" stroke="rgba(0,0,0,.45)" stroke-width="2.6">8</text><rect x="40.0" y="17.0" width="114.0" height="1.5" rx="2" fill="var(--s8)"/><text x="97.0" y="382.0" text-anchor="middle" class="vlbl">Seed</text><text x="97.0" y="399.0" text-anchor="middle" class="vmut">3% · 0.15T</text><rect x="188.0" y="193.5" width="114.0" height="167.5" rx="2" fill="var(--s1)"/><text x="245.0" y="281.2" text-anchor="middle" class="vin" paint-order="stroke" stroke="rgba(0,0,0,.45)" stroke-width="2.6">49</text><rect x="188.0" y="117.3" width="114.0" height="74.1" rx="2" fill="var(--s2)"/><text x="245.0" y="158.4" text-anchor="middle" class="vin" paint-order="stroke" stroke="rgba(0,0,0,.45)" stroke-width="2.6">22</text><rect x="188.0" y="86.2" width="114.0" height="29.1" rx="2" fill="var(--s3)"/><text x="245.0" y="104.8" text-anchor="middle" class="vin" paint-order="stroke" stroke="rgba(0,0,0,.45)" stroke-width="2.6">9</text><rect x="188.0" y="68.9" width="114.0" height="15.3" rx="2" fill="var(--s4)"/><rect x="188.0" y="65.4" width="114.0" height="1.5" rx="2" fill="var(--s6)"/><rect x="188.0" y="20.5" width="114.0" height="43.0" rx="2" fill="var(--s7)"/><text x="245.0" y="46.0" text-anchor="middle" class="vin" paint-order="stroke" stroke="rgba(0,0,0,.45)" stroke-width="2.6">13</text><rect x="188.0" y="17.0" width="114.0" height="1.5" rx="2" fill="var(--s8)"/><text x="245.0" y="382.0" text-anchor="middle" class="vlbl">Foundation</text><text x="245.0" y="399.0" text-anchor="middle" class="vmut">47% · 2.35T</text><rect x="336.0" y="259.2" width="114.0" height="101.8" rx="2" fill="var(--s1)"/><text x="393.0" y="314.1" text-anchor="middle" class="vin" paint-order="stroke" stroke="rgba(0,0,0,.45)" stroke-width="2.6">30</text><rect x="336.0" y="162.3" width="114.0" height="94.9" rx="2" fill="var(--s2)"/><text x="393.0" y="213.8" text-anchor="middle" class="vin" paint-order="stroke" stroke="rgba(0,0,0,.45)" stroke-width="2.6">28</text><rect x="336.0" y="107.0" width="114.0" height="53.4" rx="2" fill="var(--s3)"/><text x="393.0" y="137.6" text-anchor="middle" class="vin" paint-order="stroke" stroke="rgba(0,0,0,.45)" stroke-width="2.6">16</text><rect x="336.0" y="96.6" width="114.0" height="8.4" rx="2" fill="var(--s4)"/><rect x="336.0" y="82.7" width="114.0" height="11.8" rx="2" fill="var(--s5)"/><rect x="336.0" y="68.9" width="114.0" height="11.8" rx="2" fill="var(--s6)"/><rect x="336.0" y="30.8" width="114.0" height="36.1" rx="2" fill="var(--s7)"/><text x="393.0" y="52.9" text-anchor="middle" class="vin" paint-order="stroke" stroke="rgba(0,0,0,.45)" stroke-width="2.6">11</text><rect x="336.0" y="17.0" width="114.0" height="11.8" rx="2" fill="var(--s8)"/><text x="393.0" y="382.0" text-anchor="middle" class="vlbl">STEM ramp</text><text x="393.0" y="399.0" text-anchor="middle" class="vmut">30% · 1.5T</text><rect x="484.0" y="286.9" width="114.0" height="74.1" rx="2" fill="var(--s1)"/><text x="541.0" y="327.9" text-anchor="middle" class="vin" paint-order="stroke" stroke="rgba(0,0,0,.45)" stroke-width="2.6">22</text><rect x="484.0" y="210.8" width="114.0" height="74.1" rx="2" fill="var(--s2)"/><text x="541.0" y="251.8" text-anchor="middle" class="vin" paint-order="stroke" stroke="rgba(0,0,0,.45)" stroke-width="2.6">22</text><rect x="484.0" y="169.2" width="114.0" height="39.5" rx="2" fill="var(--s3)"/><text x="541.0" y="193.0" text-anchor="middle" class="vin" paint-order="stroke" stroke="rgba(0,0,0,.45)" stroke-width="2.6">12</text><rect x="484.0" y="162.3" width="114.0" height="4.9" rx="2" fill="var(--s4)"/><rect x="484.0" y="79.3" width="114.0" height="81.0" rx="2" fill="var(--s5)"/><text x="541.0" y="123.8" text-anchor="middle" class="vin" paint-order="stroke" stroke="rgba(0,0,0,.45)" stroke-width="2.6">24</text><rect x="484.0" y="65.4" width="114.0" height="11.8" rx="2" fill="var(--s6)"/><rect x="484.0" y="30.8" width="114.0" height="32.6" rx="2" fill="var(--s7)"/><text x="541.0" y="51.1" text-anchor="middle" class="vin" paint-order="stroke" stroke="rgba(0,0,0,.45)" stroke-width="2.6">10</text><rect x="484.0" y="17.0" width="114.0" height="11.8" rx="2" fill="var(--s8)"/><text x="541.0" y="382.0" text-anchor="middle" class="vlbl">Long-context</text><text x="541.0" y="399.0" text-anchor="middle" class="vmut">12% · 0.6T</text><rect x="632.0" y="314.6" width="114.0" height="46.4" rx="2" fill="var(--s1)"/><text x="689.0" y="341.8" text-anchor="middle" class="vin" paint-order="stroke" stroke="rgba(0,0,0,.45)" stroke-width="2.6">14</text><rect x="632.0" y="252.3" width="114.0" height="60.3" rx="2" fill="var(--s2)"/><text x="689.0" y="286.4" text-anchor="middle" class="vin" paint-order="stroke" stroke="rgba(0,0,0,.45)" stroke-width="2.6">18</text><rect x="632.0" y="196.9" width="114.0" height="53.4" rx="2" fill="var(--s3)"/><text x="689.0" y="227.6" text-anchor="middle" class="vin" paint-order="stroke" stroke="rgba(0,0,0,.45)" stroke-width="2.6">16</text><rect x="632.0" y="169.2" width="114.0" height="25.7" rx="2" fill="var(--s5)"/><text x="689.0" y="186.1" text-anchor="middle" class="vin" paint-order="stroke" stroke="rgba(0,0,0,.45)" stroke-width="2.6">8</text><rect x="632.0" y="141.6" width="114.0" height="25.7" rx="2" fill="var(--s6)"/><text x="689.0" y="158.4" text-anchor="middle" class="vin" paint-order="stroke" stroke="rgba(0,0,0,.45)" stroke-width="2.6">8</text><rect x="632.0" y="58.5" width="114.0" height="81.0" rx="2" fill="var(--s7)"/><text x="689.0" y="103.0" text-anchor="middle" class="vin" paint-order="stroke" stroke="rgba(0,0,0,.45)" stroke-width="2.6">24</text><rect x="632.0" y="17.0" width="114.0" height="39.5" rx="2" fill="var(--s8)"/><text x="689.0" y="40.8" text-anchor="middle" class="vin" paint-order="stroke" stroke="rgba(0,0,0,.45)" stroke-width="2.6">12</text><text x="689.0" y="382.0" text-anchor="middle" class="vlbl">Anneal</text><text x="689.0" y="399.0" text-anchor="middle" class="vmut">8% · 0.4T</text><text x="34.0" y="11.0" text-anchor="end" class="vmut">%</text></svg><div class="legend"><span class="lg"><i style="background:var(--s1)"></i>General web</span><span class="lg"><i style="background:var(--s2)"></i>Code</span><span class="lg"><i style="background:var(--s3)"></i>Mathematics &amp; STEM</span><span class="lg"><i style="background:var(--s7)"></i>Indic</span><span class="lg"><i style="background:var(--s4)"></i>Curated knowledge</span><span class="lg"><i style="background:var(--s5)"></i>Long-context</span><span class="lg"><i style="background:var(--s6)"></i>Reasoning</span><span class="lg"><i style="background:var(--s8)"></i>Agentic</span></div><figcaption><b>Figure 4.</b> Percentage of each category at every training stage (each column sums to 100%; stage width in tokens noted beneath). General web falls 62→14 while code, mathematics and reasoning rise; long-context is introduced only after the model can read and reason; Indic is held above its 8% floor and then upsampled to 24%; agentic and reasoning stay small until the anneal, where the held-back reserve is spent.</figcaption></figure>
+
+<p>Figure 4 visualizes this schedule. Token-weighted across the four main-run stages (weights 3, 47, 30, 12), the matrix integrates to a main-run mixture of approximately web 40, code 24, mathematics 11, Indic 12, curated 4, long-context 4, reasoning 2, and agentic 2, reproducing the Section 4.1 shares within about two points (the residuals are a target for proxy-scale tuning). Each boundary between columns is a mixture transition and is warmed up gradually, for the stability reason of Section 5.5.</p>
+<p>The HTML reading view provides an <strong>interactive version of this schedule</strong>: each stage's lane shares can be adjusted with sliders (which renormalize to 100 %), and a supply panel recomputes, for the whole run, how each lane's token demand compares with the real verified data available in Table 3 — reporting each lane as verified-backed, as requiring <em>N</em> epochs of repetition, or as requiring synthesis. It makes the scarcity constraint of Section 4 directly manipulable: raising the Indic or agentic share turns those lanes red as their demand exceeds the real supply.</p>
+<div id="stageExplorer" class="explorer"><noscript>Enable JavaScript to use the interactive stage explorer.</noscript></div>
+<script>
+(function(){
+  var host=document.getElementById('stageExplorer'); if(!host) return;
+  var STAGES=[{n:'Seed',t:0.15},{n:'Foundation',t:2.35},{n:'STEM ramp',t:1.5},{n:'Long-context',t:0.6},{n:'Anneal',t:0.4}];
+  var LANES=['General web','Code','Mathematics & STEM','Indic','Curated knowledge','Long-context','Reasoning','Agentic'];
+  var VAR={'General web':'s1','Code':'s2','Mathematics & STEM':'s3','Indic':'s7','Curated knowledge':'s4','Long-context':'s5','Reasoning':'s6','Agentic':'s8'};
+  var PLAN={'General web':[62,49,30,22,14],'Code':[8,22,28,22,18],'Mathematics & STEM':[2,9,16,12,16],'Indic':[8,13,11,10,24],'Curated knowledge':[18,5,3,2,0],'Long-context':[0,0,4,24,8],'Reasoning':[1,1,4,4,8],'Agentic':[1,1,4,4,12]};
+  var SUPPLY={'General web':5000,'Code':900,'Mathematics & STEM':200,'Indic':264,'Curated knowledge':50,'Long-context':null,'Reasoning':8,'Agentic':5};
+  var NOTE={'General web':'FineWeb-Edu + DCLM + FineWeb','Code':'The Stack v2','Mathematics & STEM':'FineMath + Proof-Pile-2 + Nemotron','Indic':'Sangraha + IndicCorp — native 102B / real 264B','Curated knowledge':'Wikipedia + StackExchange + books','Long-context':'packed from books / arXiv / code','Reasoning':'NuminaMath + OpenThoughts2','Agentic':'xLAM / APIGen'};
+  var dist={}; LANES.forEach(function(l){dist[l]=PLAN[l].slice();});
+  var active=1, inpArr=[], vvArr=[];
+  function tB(s){return STAGES[s].t*1000;}
+  function pctOfRun(s){return Math.round(STAGES[s].t/5*100);}
+  function renorm(s,idx,v){v=Math.max(0,Math.min(100,v));var oth=0;LANES.forEach(function(l,i){if(i!==idx)oth+=dist[l][s];});var rem=100-v;LANES.forEach(function(l,i){if(i===idx)dist[l][s]=v;else dist[l][s]=oth>0?dist[l][s]/oth*rem:rem/(LANES.length-1);});}
+  function wholeRun(l){var w=0;for(var s=0;s<5;s++)w+=dist[l][s]*tB(s)/100;return w;}
+  function statusOf(l){var sup=SUPPLY[l],wr=wholeRun(l);
+    if(sup===null)return{c:'gray',t:'constructed'};
+    if(sup>=3000)return{c:'green',t:'abundant'};
+    var ep=wr/sup;
+    if(ep<=1.0)return{c:'green',t:'verified-backed'};
+    if(ep<=4.05)return{c:'amber',t:'×'+ep.toFixed(1)+' epochs'};
+    return{c:'red',t:'synthesis ×'+ep.toFixed(1)};}
+
+  var tabs=document.createElement('div');tabs.className='ex-tabs';
+  STAGES.forEach(function(st,i){var b=document.createElement('button');b.type='button';b.className='ex-tab'+(i===active?' active':'');b.innerHTML=st.n+'<small>'+pctOfRun(i)+'% · '+st.t+'T</small>';b.onclick=function(){active=i;buildSliders();update(-1);syncTabs();};tabs.appendChild(b);});
+  host.appendChild(tabs);
+  var grid=document.createElement('div');grid.className='ex-grid';
+  var sliders=document.createElement('div');var barwrap=document.createElement('div');
+  grid.appendChild(sliders);grid.appendChild(barwrap);host.appendChild(grid);
+  var supply=document.createElement('div');supply.className='ex-supply';host.appendChild(supply);
+  var actions=document.createElement('div');actions.className='ex-actions';
+  var reset=document.createElement('button');reset.type='button';reset.className='ex-reset';reset.textContent='Reset to plan';reset.onclick=function(){LANES.forEach(function(l){dist[l]=PLAN[l].slice();});buildSliders();update(-1);};
+  var sumtxt=document.createElement('span');sumtxt.className='ex-sum';
+  actions.appendChild(reset);actions.appendChild(sumtxt);host.appendChild(actions);
+
+  function syncTabs(){Array.prototype.forEach.call(tabs.children,function(b,i){b.className='ex-tab'+(i===active?' active':'');});}
+  function buildSliders(){sliders.innerHTML='';inpArr=[];vvArr=[];
+    LANES.forEach(function(l,idx){var row=document.createElement('div');row.className='ex-row';
+      row.innerHTML='<span class="sw" style="background:var(--'+VAR[l]+')"></span><span class="nm" title="'+l+'">'+l+'</span>';
+      var inp=document.createElement('input');inp.type='range';inp.min=0;inp.max=100;inp.step=1;inp.value=Math.round(dist[l][active]);
+      inp.addEventListener('input',function(){renorm(active,idx,parseInt(inp.value,10));update(idx);});
+      var vv=document.createElement('span');vv.className='vv';vv.textContent=Math.round(dist[l][active])+'%';
+      row.appendChild(inp);row.appendChild(vv);sliders.appendChild(row);inpArr[idx]=inp;vvArr[idx]=vv;});}
+  function renderBar(){var bar='<div class="ex-bar">';LANES.forEach(function(l){var v=dist[l][active];if(v>0.4)bar+='<div class="ex-seg" style="flex-basis:'+v+'%;background:var(--'+VAR[l]+')">'+(v>=9?Math.round(v):'')+'</div>';});bar+='</div><div class="ex-cap">Composition at <b>'+STAGES[active].n+'</b> ('+STAGES[active].t+'T). Drag any slider — the others renormalize to 100%.</div>';barwrap.innerHTML=bar;}
+  function renderSupply(){var h='<table><thead><tr><th>Lane</th><th style="text-align:right">Whole-run demand</th><th style="text-align:right">Real supply</th><th>Status</th><th>Source (Table 3)</th></tr></thead><tbody>';
+    LANES.forEach(function(l){var wr=wholeRun(l),sup=SUPPLY[l],st=statusOf(l);
+      h+='<tr><td><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--'+VAR[l]+');margin-right:6px"></span>'+l+'</td>'+
+      '<td class="num">'+Math.round(wr)+' B</td>'+
+      '<td class="num">'+(sup===null?'—':(sup>=3000?'>5000':sup)+' B')+'</td>'+
+      '<td><span class="chip '+st.c+'">'+st.t+'</span></td>'+
+      '<td style="color:var(--muted)">'+NOTE[l]+'</td></tr>';});
+    h+='</tbody></table>';supply.innerHTML=h;}
+  function renderSum(){var tot=0;LANES.forEach(function(l){tot+=dist[l][active];});sumtxt.textContent='Σ at '+STAGES[active].n+' = '+Math.round(tot)+'%  ·  whole-run total = 5000 B (5T fixed)';}
+  function update(dragIdx){LANES.forEach(function(l,idx){if(idx!==dragIdx&&inpArr[idx])inpArr[idx].value=Math.round(dist[l][active]);if(vvArr[idx])vvArr[idx].textContent=Math.round(dist[l][active])+'%';});renderBar();renderSupply();renderSum();}
+  buildSliders();update(-1);
+})();
+</script>
+
+<h3>5.3 Protected always-on selection floor</h3>
+<p>OPUS — the V4 data-selection method, which retained approximately 40 % of candidate batches for an approximately sixfold effective-token gain at a few percent overhead — defines usefulness through a proxy. An English-web proxy structurally undervalues native Indic text and unfamiliar agentic trajectories, and thereby suppresses the target capabilities. A fixed fraction of every batch is therefore reserved outside the selector's control.</p>
+<p><strong>Table 9.</strong> Protected always-on floor. The selector operates on the remaining 90 %.</p>
+<table>
+<thead>
+<tr>
+<th>Lane</th>
+<th style="text-align: right;">Floor per batch</th>
+<th>Rationale</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Indic (native: verified + unverified)</td>
+<td style="text-align: right;">8 %</td>
+<td>Backed by ≈ 102 B real unique native tokens (Sangraha 64 B + 24 B + IndicCorp v2 14.4 B) at ≤ 3.6 epochs</td>
+</tr>
+<tr>
+<td>Agentic</td>
+<td style="text-align: right;">1 %</td>
+<td>Scarce and unfamiliar; the selector would otherwise suppress it</td>
+</tr>
+<tr>
+<td>Reasoning</td>
+<td style="text-align: right;">1 %</td>
+<td>As above</td>
+</tr>
+<tr>
+<td><strong>Total protected</strong></td>
+<td style="text-align: right;"><strong>10 %</strong></td>
+<td>The remaining 90 % is subject to aggressive selection</td>
+</tr>
+</tbody>
+</table>
+<p>The native Indic core is always present and is never judged by the selector, while the translated, synthetic, and additional unverified Indic data is left within the selector's pool so that it is quality-filtered.</p>
+<h3>5.4 Final annealing phase</h3>
+<p>The final annealing phase is the highest-leverage stage in the plan. Its 0.4 T preset inverts the pretraining mixture: general web falls from about 42 % to 14 %, while the scarce lanes are upsampled — mathematics and reasoning to about 24 % combined, Indic (verified-heavy) to 24 %, agentic to 12 %, code to 18 %, and long-context to 8 %. This is feasible only if the reserve survives the main run, so the following are quarantined from ordinary sampling before step 0 (approximately 150–200 B tokens): a large share of verified Indic, roughly half of all genuine agentic Tier-A trajectories, ultra-length reasoning traces with verified answers, and a set of tested code and competition mathematics. If the selector consumed the best data early, no high-value material would remain for annealing.</p>
+<h3>5.5 Stability under mixture transitions</h3>
+<p>In the V4 run, a sudden increase in the Hindi share interacting with frozen embeddings raised the gradient norm by approximately 150×, an event capable of destabilizing a run. No mixture change is therefore applied in a single step: each transition is blended over a warm-up band of approximately 20–40 B tokens, embeddings remain unfrozen during Indic ramps, and gradient norm and per-lane loss are monitored at every boundary. The architecture and mixture are frozen before the main run begins.</p>
+<hr>
+<h2>6. Validation protocol</h2>
+<p>No proportion above is adopted at 40 B until it has been evaluated on proxy runs at 1 B (approximately 25 B tokens; stability and loss checks) and 3 B (approximately 60–90 B tokens; benchmark movement), holding proportions fixed and using the Session-2 tokenizer with <code>lm-eval-harness</code>, IndicGenBench, and a BFCL/τ-bench harness.</p>
+<p><strong>Table 10.</strong> Validation hypotheses, metrics, and decision rules.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Hypothesis</th>
+<th>Metric</th>
+<th>Decision rule</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>H1</td>
+<td>The 8 % native-Indic floor protects Indic performance under selection</td>
+<td>MILU, IndicQA, IndicGenBench</td>
+<td>Ablate the floor: retain it if Indic falls ≥ 5 points while EN-MMLU stays within 1 point; remove it and reallocate to code if the benefit is &lt; 2 points</td>
+</tr>
+<tr>
+<td>H2</td>
+<td>The agentic seed improves tool use without fabricated tool outputs</td>
+<td>BFCL, τ-bench, tool-observation-emission rate</td>
+<td>If the model emits tool-observation tokens, the mask is defective and must be corrected before scaling; if the BFCL gain is &lt; 3 points, reduce the synthetic share</td>
+</tr>
+<tr>
+<td>H3</td>
+<td>Code at 22 % is the knee of the code-versus-knowledge trade-off</td>
+<td>HumanEval/MBPP versus MMLU</td>
+<td>Sweep code ∈ {18, 22, 26}% at 1 B and select the knee; raise to 26 % if it still improves HumanEval at ≤ 1 point MMLU cost</td>
+</tr>
+<tr>
+<td>H4</td>
+<td>A native-majority Indic split (54 % native) exceeds a translation-heavy split on native fluency at equal token count</td>
+<td>Held-out native-Indic perplexity and IndicGenBench quality</td>
+<td>Increase the (cheaper) translated share if the translation-heavy split matches native fluency; otherwise retain the native-majority split</td>
+</tr>
+<tr>
+<td>H5</td>
+<td>An easy-to-hard curriculum reaches a target accuracy in fewer tokens than a constant mixture</td>
+<td>Tokens-to-threshold on MATH-L3 / GSM8K</td>
+<td>Reduce curriculum complexity if the constant mixture matches the curriculum</td>
+</tr>
+<tr>
+<td>H6</td>
+<td>The 0.4 T anneal on the reserve exceeds a 0.4 T continuation of the broad mixture</td>
+<td>SWE-bench-Lite, AIME, MILU, BFCL</td>
+<td>Re-curate the reserve if the anneal gain is &lt; 2 points over the broad continuation</td>
+</tr>
+</tbody>
+</table>
+<p>The proxy results, not this document, determine what is retained, changed, or removed. Executing the 1 B code and Indic-floor sweeps (H1 and H3) and reporting the resulting numbers is the immediate next action.</p>
+<h3>6.1 Verification harness and results</h3>
+<p>A companion script, <a href="experiments/experiment.py"><code>experiments/experiment.py</code></a> (pure Python standard library, no GPU), makes the plan's checkable claims reproducible. It has three modes.</p>
+<p><strong><code>verify</code></strong> recomputes every accounting and supply claim from the plan and the cited dataset sizes of Table 3. <strong>Result: 14 / 14 checks pass.</strong> It confirms that the main mixture and all five stage columns sum to 100 %, that the stage matrix integrates to the main mixture within 2.3 points, that the whole-run token demand totals 5.0 T, that the Indic lane is native-majority (54.3 %) with the verified (2.69×) and unverified (3.75×) tiers inside the four-epoch limit, and that the 8 % floor is backed by native supply at 3.6×. Critically, it <em>recomputes each lane's supply verdict independently and checks it against Table 4</em>; this is what established that the Indic lane's aggregate verdict is repetition of real data (2.4× of the 264 B real pool), not synthesis — only the ~18 % romanized tier is newly generated.</p>
+<p><strong><code>repetition</code></strong> is a trained-to-convergence linear-model experiment demonstrating the mechanism behind the supply discipline. Repeating a fixed 150-token pool converges to a flat held-out error (1.33) no matter how many passes, while the same budget of <em>fresh</em> unique tokens keeps reducing it (1.24 → 1.04 across 1× → 32× data); the value lost to repetition grows from +16 % to +28 %. This is the data-side of the ≤ 4-epoch rule of <a href="https://arxiv.org/abs/2305.16264">Muennighoff et al. (2023)</a> that motivates sizing the budget by scarce unique supply.</p>
+<p><strong><code>proxy-plan</code></strong> prints the H1–H6 configurations, metrics, and decision rules for the 1 B / 3 B GPU runs, which this script does not execute.</p>
+<p>The accounting and the underlying mechanism are therefore verified and reproducible (<code>python3 experiments/experiment.py all</code>); the benchmark-level hypotheses H1–H6 still require the GPU proxy runs, which remain the immediate next action.</p>
+<hr>
+<h2>7. Ongoing data collection</h2>
+<p>The supply figures of Section 4 make three shortages measurable, and Session-4 cleaning is directed at these lanes rather than at data already held:</p>
+<ol>
+<li><strong>Verified native Indic</strong>, the binding constraint. Acquire additional genuine native text — Indic broadcast and podcast transcripts from the opened AIR and Doordarshan archives, PIB releases (14 languages), court judgments, and digitized Indic books — to raise the ~64–78 B verified ceiling and reduce reliance on translation and synthesis. These sources are freely usable (Section 2.2) and cover the scarcest languages.</li>
+<li><strong>Genuine agentic trajectories</strong>, which must be constructed rather than collected: an instrumented tool-execution harness that captures real multi-step sessions, including failures and recoveries, with correct masking, together with repository-task trajectories in the SWE style.</li>
+<li><strong>Long native-Indic documents</strong>, for the Indic component of the long-context lane, which the verified supply barely covers.</li>
+</ol>
+<hr>
+<h2>8. Limitations and provenance of the numbers</h2>
+<ul>
+<li><strong>Measured or published (cited):</strong> the Session-4 cleaning funnels (Table 1); every dataset size in the verified inventory (Table 3), drawn from the dataset cards and papers linked there; the four-epoch repetition finding (<a href="https://arxiv.org/abs/2305.16264">Muennighoff et al. 2023</a>); and the ERA V4 reference points reported in the course material (web 70 → 18 %, code 13 → 35 %, science and mathematics 7 → 39 %, protected 8 %; OPUS at approximately 40 % retention and an approximately sixfold effective-token gain; the approximately 150× frozen-embedding gradient spike). Published dataset sizes are measured in each dataset's own tokenizer and must be re-measured in the Session-2 tokenizer before the run.</li>
+<li><strong>Design allocations (the author's proposal, not sourced):</strong> the lane shares in Tables 4, 5, 8, and 9, the annealing composition, the reasoning length bands, and the proxy thresholds. Each is constrained by the measured supply of Table 3 and carries an explicit repetition or synthesis statement; none is presented as a sourced fact.</li>
+<li><strong>Not yet executed:</strong> the Section-6 proxies, and the Section-7 collection targets (whose tokens are not counted in Table 3). Until the proxies are run, this specification is a defensible, supply-grounded hypothesis rather than a result.</li>
+</ul>
+<hr>
+<h2>9. Discussion and conclusion</h2>
+<p>A data mixture is a set of trade-offs made against a fixed token budget and composed backward from the capabilities the model is intended to demonstrate. General web is the largest lane only because it is the least expensive to obtain; the capabilities that motivate the project are scarce and are therefore protected by an always-on selection floor, held in an annealing reserve, and ordered by a curriculum rather than left to a selector that would suppress them. The decisive constraint is measured, not assumed: the verified native Indic supply is approximately 64–78 B unique tokens, and because repetition beyond four epochs ceases to help, a native-majority Indic lane is bounded at about 12 % of the budget. Every supply figure in this report is drawn from a published source, and every allocation is a design proposal constrained by that supply and stated so that it can be overturned by a 1 B- or 3 B-parameter proxy before adoption at 40 B. Running the Indic-floor and code-share sweeps is the next step.</p>
+<hr>
+<h2>References</h2>
+<p>Links current as of July 2026.</p>
+<p><strong>Training dynamics and data selection.</strong> N. Muennighoff et al., "Scaling Data-Constrained Language Models," NeurIPS 2023, <a href="https://arxiv.org/abs/2305.16264">arXiv:2305.16264</a>. ERA V4 course material — mixture schedule, OPUS data selection, and training-stability analysis.</p>
+<p><strong>Pretraining datasets.</strong> G. Penedo et al., "The FineWeb Datasets," 2024, <a href="https://arxiv.org/abs/2406.17557">arXiv:2406.17557</a> · <a href="https://huggingface.co/datasets/HuggingFaceFW/fineweb-edu">FineWeb-Edu</a>. "DCLM-baseline," <a href="https://huggingface.co/datasets/mlfoundations/dclm-baseline-1.0">HF</a>. A. Lozhkov et al., "StarCoder2 and The Stack v2," 2024, <a href="https://arxiv.org/abs/2402.19173">arXiv:2402.19173</a> · <a href="https://huggingface.co/datasets/bigcode/the-stack-v2-dedup">the-stack-v2-dedup</a>. "FineMath," <a href="https://huggingface.co/datasets/HuggingFaceTB/finemath">HF</a>. K. Paster et al., "OpenWebMath," 2023, <a href="https://arxiv.org/abs/2310.06786">arXiv:2310.06786</a>. Z. Azerbayev et al., "Llemma / Proof-Pile-2," 2023, <a href="https://arxiv.org/abs/2310.10631">arXiv:2310.10631</a>. "Nemotron-CC-Math," 2025, <a href="https://arxiv.org/abs/2508.15096">arXiv:2508.15096</a>.</p>
+<p><strong>Indic datasets and tooling.</strong> AI4Bharat, "IndicLLMSuite / Sangraha," 2024, <a href="https://arxiv.org/abs/2403.06350">arXiv:2403.06350</a> · <a href="https://huggingface.co/datasets/ai4bharat/sangraha">sangraha</a>. AI4Bharat, "IndicCorp v2," <a href="https://huggingface.co/datasets/ai4bharat/IndicCorpV2">HF</a>. J. Gala et al., "IndicTrans2," 2023, <a href="https://arxiv.org/abs/2305.16307">arXiv:2305.16307</a>.</p>
+<p><strong>Agentic and reasoning datasets.</strong> Salesforce, "APIGen / xLAM function-calling," 2024, <a href="https://arxiv.org/abs/2406.18518">arXiv:2406.18518</a> · <a href="https://huggingface.co/datasets/Salesforce/xlam-function-calling-60k">HF</a>. AI-MO, "NuminaMath-CoT," 2024, <a href="https://huggingface.co/datasets/AI-MO/NuminaMath-CoT">HF</a>. Open-Thoughts, "OpenThoughts2-1M," 2025, <a href="https://huggingface.co/datasets/open-thoughts/OpenThoughts2-1M">HF</a>.</p>
+<p><strong>Benchmarks.</strong> SWE-bench (Jimenez et al., <a href="https://arxiv.org/abs/2310.06770">arXiv:2310.06770</a>); GAIA (Mialon et al., <a href="https://arxiv.org/abs/2311.12983">arXiv:2311.12983</a>); HumanEval (Chen et al., <a href="https://arxiv.org/abs/2107.03374">arXiv:2107.03374</a>); MBPP (Austin et al., <a href="https://arxiv.org/abs/2108.07732">arXiv:2108.07732</a>); LiveCodeBench (Jain et al., <a href="https://arxiv.org/abs/2403.07974">arXiv:2403.07974</a>); GSM8K (Cobbe et al., <a href="https://arxiv.org/abs/2110.14168">arXiv:2110.14168</a>); MATH (Hendrycks et al., <a href="https://arxiv.org/abs/2103.03874">arXiv:2103.03874</a>); GPQA (Rein et al., <a href="https://arxiv.org/abs/2311.12022">arXiv:2311.12022</a>); MMLU-Pro (Wang et al., <a href="https://arxiv.org/abs/2406.01574">arXiv:2406.01574</a>); IndicGenBench (Google Research, <a href="https://arxiv.org/abs/2404.16816">arXiv:2404.16816</a>). τ-bench, BFCL, and MILU are cited by name; confirm their current references before external circulation.</p>
+<p><strong>Internal prior work.</strong> ERA V5 Session 2 — Tokenizer report. ERA V5 Session 3 — Data-strategy report. ERA V5 Session 4 — Cleaning and deduplication report.</p>
+<hr>
+<h2>Appendix A. Session-to-session lineage</h2>
+<p><strong>Table 11.</strong> Contributions of prior sessions and what the present specification inherits.</p>
+<table>
+<thead>
+<tr>
+<th>Session</th>
+<th>Contribution</th>
+<th>Inherited by this specification</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>S2</td>
+<td>≈ 278 K Indic-aware tokenizer; per-language fertility</td>
+<td>The unit in which every token here is counted</td>
+</tr>
+<tr>
+<td>S3</td>
+<td>40 B / 5 T strategy; the Indic-supply constraint; evaluation design; free acquisition tier</td>
+<td>The budget, the Indic constraint, and the benchmarks</td>
+</tr>
+<tr>
+<td>S4</td>
+<td>Eight-stage cleaning/deduplication/PII pipeline; per-script filter; provenance and determinism; book corpora</td>
+<td>Auditable, Indic-preserving shards behind every lane</td>
+</tr>
+<tr>
+<td>S5 (this)</td>
+<td>Mixture, tier split, protected floor, annealing reserve, curriculum, and validation protocol</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+</div>
+<script>
+(function () {
+  document.querySelectorAll("table").forEach(function (t) {
+    if (t.parentElement.classList.contains("table-scroll")) return;
+    var w = document.createElement("div"); w.className = "table-scroll";
+    t.parentNode.insertBefore(w, t); w.appendChild(t);
+  });
+  var root = document.documentElement, btn = document.getElementById("themeToggle");
+  var saved = null; try { saved = localStorage.getItem("s5theme"); } catch (e) {}
+  if (saved) root.setAttribute("data-theme", saved);
+  btn.addEventListener("click", function () {
+    var cur = root.getAttribute("data-theme");
+    if (!cur) cur = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    var next = cur === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    try { localStorage.setItem("s5theme", next); } catch (e) {}
+  });
+})();
+</script>
+</body>
+</html>

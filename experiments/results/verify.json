@@ -1,0 +1,161 @@
+{
+  "checks": [
+    {
+      "name": "Main mixture sums to 100%",
+      "pass": true,
+      "detail": "= 100%"
+    },
+    {
+      "name": "Stage 'Seed' column sums to 100%",
+      "pass": true,
+      "detail": "= 100%"
+    },
+    {
+      "name": "Stage 'Foundation' column sums to 100%",
+      "pass": true,
+      "detail": "= 100%"
+    },
+    {
+      "name": "Stage 'STEM ramp' column sums to 100%",
+      "pass": true,
+      "detail": "= 100%"
+    },
+    {
+      "name": "Stage 'Long-context' column sums to 100%",
+      "pass": true,
+      "detail": "= 100%"
+    },
+    {
+      "name": "Stage 'Anneal' column sums to 100%",
+      "pass": true,
+      "detail": "= 100%"
+    },
+    {
+      "name": "Stage matrix integrates to main mix within tolerance",
+      "pass": true,
+      "detail": "worst residual 2.3 pt"
+    },
+    {
+      "name": "Whole-run token total = 5000 B (5T)",
+      "pass": true,
+      "detail": "= 5000 B"
+    },
+    {
+      "name": "Recomputed verdicts match the report's declared verdicts (Table 4)",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "Indic tiers sum to the 552 B lane",
+      "pass": true,
+      "detail": "= 552 B"
+    },
+    {
+      "name": "Indic lane is native-majority (verified+unverified >= 50%)",
+      "pass": true,
+      "detail": "native = 54.3%"
+    },
+    {
+      "name": "  Verified native within 4-epoch limit",
+      "pass": true,
+      "detail": "210B / 78B = 2.69x epochs"
+    },
+    {
+      "name": "  Unverified native within 4-epoch limit",
+      "pass": true,
+      "detail": "90B / 24B = 3.75x epochs"
+    },
+    {
+      "name": "8% Indic floor backed by native supply within 4 epochs",
+      "pass": true,
+      "detail": "368B / 102B = 3.61x"
+    }
+  ],
+  "supply_table": [
+    {
+      "lane": "General web",
+      "demand_b": 1882.5,
+      "supply_b": 5300,
+      "epochs": 0.36,
+      "verdict": "abundant"
+    },
+    {
+      "lane": "Code",
+      "demand_b": 1153.0,
+      "supply_b": 900,
+      "epochs": 1.28,
+      "verdict": "repetition"
+    },
+    {
+      "lane": "Mathematics & STEM",
+      "demand_b": 590.5,
+      "supply_b": 200,
+      "epochs": 2.95,
+      "verdict": "repetition"
+    },
+    {
+      "lane": "Indic",
+      "demand_b": 638.5,
+      "supply_b": 264,
+      "epochs": 2.42,
+      "verdict": "repetition"
+    },
+    {
+      "lane": "Curated knowledge",
+      "demand_b": 201.5,
+      "supply_b": 50,
+      "epochs": 4.03,
+      "verdict": "repetition"
+    },
+    {
+      "lane": "Long-context",
+      "demand_b": 236.0,
+      "supply_b": null,
+      "epochs": null,
+      "verdict": "constructed"
+    },
+    {
+      "lane": "Reasoning",
+      "demand_b": 141.0,
+      "supply_b": 8,
+      "epochs": 17.62,
+      "verdict": "synthesis"
+    },
+    {
+      "lane": "Agentic",
+      "demand_b": 157.0,
+      "supply_b": 5,
+      "epochs": 31.4,
+      "verdict": "synthesis"
+    }
+  ],
+  "indic_tiers": [
+    {
+      "tier": "Verified native",
+      "alloc_b": 210,
+      "supply_b": 78,
+      "epochs": 2.69
+    },
+    {
+      "tier": "Unverified native",
+      "alloc_b": 90,
+      "supply_b": 24,
+      "epochs": 3.75
+    },
+    {
+      "tier": "Translated",
+      "alloc_b": 150,
+      "supply_b": 162,
+      "epochs": 0.93
+    },
+    {
+      "tier": "Synthetic/romanized",
+      "alloc_b": 102,
+      "supply_b": 0,
+      "epochs": null
+    }
+  ],
+  "verified_native_b": 78.4,
+  "verified_pct_at_4ep": 6.3,
+  "all_pass": true
+}
