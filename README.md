@@ -5,14 +5,6 @@
 
 ---
 
-## Abstract
-
-The pretraining corpus of a language model does not by itself determine the model's capabilities; the *data mixture* does — the proportion of each capability the model is exposed to, the order in which it is exposed, and the training stage at which the exposure occurs. This report specifies the data mixture and curriculum for a 40-billion-parameter, India-first model trained on a fixed budget of approximately 5.0 trillion tokens (about 125 tokens per parameter). The target capabilities are agentic coding, reasoning with a controllable effort setting, and native fluency in Indic languages. Every capability lane is sized backward from the benchmark it is intended to improve and forward from the *real, published* data supply, so that no lane is assigned a share its underlying data cannot support. The governing constraint is the measured supply of verified native Indic text: the largest open Indic corpus, [Sangraha](https://huggingface.co/datasets/ai4bharat/sangraha), contains 64 B verified, 24 B unverified, and 162 B synthetic tokens, and [IndicCorp v2](https://huggingface.co/datasets/ai4bharat/IndicCorpV2) adds 14.4 B native Indic tokens — a verified native supply of roughly 64–78 B unique tokens. Because repetition beyond about four epochs ceases to help [(Muennighoff et al., 2023)](https://arxiv.org/abs/2305.16264), a *native-majority* Indic lane is bounded at approximately 12 % of the budget; the lane is therefore set to 12 % and decomposed explicitly across verified, unverified, translated, and synthetic tiers. Scarce, high-value data is protected by an always-on selection floor and reserved for a final annealing phase. Every proportion is stated as a falsifiable hypothesis with an associated metric, to be validated on 1-billion- and 3-billion-parameter proxy runs before adoption at full scale.
-
-**Keywords:** data mixture; curriculum learning; language-model pretraining; low-resource (Indic) languages; data selection; annealing; data provenance.
-
----
-
 ## 1. Introduction
 
 The same corpus and the same compute budget can produce materially different models depending on how the data is proportioned and ordered. The mixture is therefore a primary design decision rather than a bookkeeping detail.
